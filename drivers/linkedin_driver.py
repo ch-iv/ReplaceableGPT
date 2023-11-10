@@ -76,6 +76,66 @@ class LinkedinDriver(Driver):
             "arguments[0].click();", button
         )  # clicking the button
 
+        # Iterate over every page of the application and handle
+        # each page using a custom strategy based on the page_title.
+        # `max_pages` is used to break the while loop if the submit
+        # button is never reached.
+        max_pages = 1000
+        current_pages = 0
+        while current_pages < max_pages:
+            current_pages += 1
+
+            submit_button: list[WebElement] = self.browser.find_elements(
+                By.XPATH, '//button[contains(@aria-label, "Submit application")]'
+            )
+            if len(submit_button) > 0:
+                submit_button[0].click()
+                break
+
+            page_title = self.browser.find_element(
+                By.XPATH, '//h3[contains(@class, "t-16")]'
+            )
+            if not page_title:
+                logger.warning("Couldn't get page title")
+                return False
+
+            match page_title.text:
+                case "Contact info":
+                    self.handle_contact_info_page()
+                case "Resume":
+                    self.handle_resume_page()
+                case "Additional Questions":
+                    self.handle_additional_questions_page()
+                case _:
+                    logger.warning(f"Unknown page title: {page_title.text}")
+
+        return True
+
+    def handle_contact_info_page(self):
+        input_containers = self.get_text_inputs()
+        for input_container in input_containers:
+            label = input_container.find_element(By.TAG_NAME, "label")
+            input_tag = input_container.find_element(By.TAG_NAME, "input")
+            if label.text == "Mobile phone number":
+                if input_tag.get_attribute("value") != self.config["PHONE_NUMBER"]:
+                    input_tag.clear()
+                    input_tag.send_keys(self.config["PHONE_NUMBER"])
+        next_button = self.browser.find_element(
+            By.XPATH, '//button[contains(@aria-label, "Continue to next step")]'
+        )
+        next_button.click()
+
+    def handle_resume_page(self):
+        pass
+
+    def handle_additional_questions_page(self):
+        pass
+
+    def get_text_inputs(self) -> list[WebElement]:
+        return self.browser.find_elements(
+            By.XPATH, '//div[contains(@class, "artdeco-text-input--container")]'
+        )
+
     def get_active_apply_button(self) -> Optional[WebElement]:
         """Gets the easy apply button and waits for it to be enabled"""
         try:
