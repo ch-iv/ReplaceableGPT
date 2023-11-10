@@ -1,5 +1,5 @@
-# Job Application Bot (currently looking for a better name)
-A tool to automate the job application proccess.
+# ReplaceableGPT
+Waiting patiently for AI to replace your job? - Begin by having AI replace your job application process.
 
 The more you apply, the more you get rejected!
 
