@@ -5,6 +5,10 @@ from .driver import sign_in_required, CookieCache, load_cache, save_cache
 from selenium.webdriver import Firefox
 from loguru import logger
 from typing import Optional
+from selenium.webdriver.common.by import By
+from selenium.webdriver.support.ui import WebDriverWait
+from selenium.webdriver.support import expected_conditions as EC
+from selenium.webdriver.remote.webelement import WebElement
 
 
 def validate_linkedin_url(url: str) -> bool:
@@ -63,3 +67,27 @@ class LinkedinDriver(Driver):
             return False
 
         self.browser.get(url)
+
+        button = self.get_active_apply_button()
+        if not button:
+            return False
+
+        self.browser.execute_script(
+            "arguments[0].click();", button
+        )  # clicking the button
+
+    def get_active_apply_button(self) -> Optional[WebElement]:
+        """Gets the easy apply button and waits for it to be enabled"""
+        try:
+            return WebDriverWait(self.browser, 10).until(
+                EC.presence_of_element_located(
+                    (
+                        By.XPATH,
+                        '//button[contains(@class, "jobs-apply-button") and not(contains(@class, '
+                        '"artdeco-button--disabled"))]',
+                    )
+                )
+            )
+        except Exception as e:
+            logger.warning(f"Couldn't get the apply button\n{e}")
+            return None
