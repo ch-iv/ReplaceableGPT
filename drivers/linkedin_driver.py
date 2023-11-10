@@ -15,13 +15,18 @@ class LinkedinDriver(Driver):
     LOGIN_URL = (
         "https://www.linkedin.com/login?trk=guest_homepage-basic_nav-header-signin"
     )
+    DUMMY_URL = "https://www.linkedin.com/psettings/guest-controls"
     CACHE_FILENAME = "ln_cache.pickle"
 
     def __init__(self, config: dict[str, str]):
         self.config = config
         self.browser = Firefox()
         self._cookie_cache: Optional[CookieCache] = load_cache(self.CACHE_FILENAME)
+        self.set_cookie_from_cache()
+
+    def set_cookie_from_cache(self):
         if self.cookie_cache and self.cookie_cache.is_valid():
+            self.browser.get(self.DUMMY_URL)
             for cookie_dict in self.cookie_cache.cookies:
                 self.browser.add_cookie(cookie_dict)
 
