@@ -120,16 +120,20 @@ class LinkedinDriver(Driver):
                 if input_tag.get_attribute("value") != self.config["PHONE_NUMBER"]:
                     input_tag.clear()
                     input_tag.send_keys(self.config["PHONE_NUMBER"])
-        next_button = self.browser.find_element(
-            By.XPATH, '//button[contains(@aria-label, "Continue to next step")]'
-        )
-        next_button.click()
+        self.get_next_button().click()
 
     def handle_resume_page(self):
-        pass
+        file_input = self.browser.find_element(By.CSS_SELECTOR, "input[type='file']")
+        file_input.send_keys(self.config["RESUME_PATH"])
+        self.get_next_button().click()
 
     def handle_additional_questions_page(self):
         pass
+
+    def get_next_button(self):
+        return self.browser.find_element(
+            By.XPATH, '//button[contains(@aria-label, "Continue to next step")]'
+        )
 
     def get_text_inputs(self) -> list[WebElement]:
         return self.browser.find_elements(
