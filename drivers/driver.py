@@ -60,3 +60,8 @@ class FormInput(ABC):
     @abstractmethod
     def to_prompt_block(self) -> str:
         pass
+
+    @abstractmethod
+    def answer_default(self) -> None:
+        """Executes a default answer for a form input of a specific type"""
+        return

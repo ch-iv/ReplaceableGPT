@@ -7,6 +7,7 @@ from selenium.webdriver import Firefox
 from loguru import logger
 from typing import Optional
 from selenium.webdriver.common.by import By
+from selenium.common.exceptions import NoSuchElementException
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
 from selenium.webdriver.remote.webelement import WebElement
@@ -90,7 +91,15 @@ class LinkedinDriver(Driver):
                 By.XPATH, '//button[contains(@aria-label, "Submit application")]'
             )
             if len(submit_button) > 0:
-                submit_button[0].click()
+                self.browser.execute_script(
+                    "arguments[0].scrollIntoView();", submit_button[0]
+                )
+                logger.debug(f"Successfully sent application for: {url}")
+
+                if (
+                    self.config["DEBUG"] == "False"
+                ):  # only submit in when not in debug mode
+                    submit_button[0].click()
                 break
 
             page_title = self.browser.find_element(
@@ -130,12 +139,24 @@ class LinkedinDriver(Driver):
         self.get_next_button().click()
 
     def handle_additional_questions_page(self):
-        logger.debug(f"{self.get_all_inputs()=}")
+        all_inputs = self.get_all_inputs()
+        for inp in all_inputs:
+            inp.answer_default()
+        self.get_next_or_review_button().click()
 
     def get_next_button(self):
         return self.browser.find_element(
             By.XPATH, '//button[contains(@aria-label, "Continue to next step")]'
         )
+
+    def get_next_or_review_button(self) -> WebElement:
+        """Gets either the `Next` button on a page or the `Review` button depending on which one is present."""
+        try:
+            return self.get_next_button()
+        except NoSuchElementException:
+            return self.browser.find_element(
+                By.XPATH, '//button[contains(@aria-label, "Review your application")]'
+            )
 
     def get_text_inputs(self) -> list[LnTextInput]:
         return list(
@@ -158,15 +179,13 @@ class LinkedinDriver(Driver):
         )
 
     def get_radio_inputs(self) -> list[LnRadioInput]:
-        return list(
-            map(
-                LnRadioInput,
-                self.browser.find_elements(
-                    By.XPATH,
-                    '//fieldset[@data-test-form-builder-radio-button-form-component="true"]',
-                ),
-            )
-        )
+        radio_inputs = []
+        for container in self.browser.find_elements(
+            By.XPATH,
+            '//fieldset[@data-test-form-builder-radio-button-form-component="true"]',
+        ):
+            radio_inputs.append(LnRadioInput(container, self.browser))
+        return radio_inputs
 
     def get_all_inputs(self) -> list[LnTextInput | LnRadioInput | LnSelectInput]:
         all_inputs: list[LnTextInput | LnRadioInput | LnSelectInput] = []
@@ -202,6 +221,10 @@ class LnTextInput(FormInput):
     def to_prompt_block(self) -> str:
         return ""
 
+    def answer_default(self) -> None:
+        if self.input:
+            self.input.send_keys("0")
+
     def __str__(self) -> str:
         return truncate(self.text)
 
@@ -217,9 +240,15 @@ class LnSelectInput(FormInput):
         self.options: list[WebElement] = self.container.find_elements(
             By.XPATH, "select/option"
         )
+        self.select = self.container.find_element(By.XPATH, "select")
 
     def to_prompt_block(self) -> str:
         return ""
+
+    def answer_default(self) -> None:
+        if self.select and len(self.options) > 0:
+            self.select.click()
+            self.options[-1].click()
 
     def __str__(self) -> str:
         return truncate(self.text)
@@ -229,16 +258,21 @@ class LnSelectInput(FormInput):
 
 
 class LnRadioInput(FormInput):
-    def __init__(self, container: WebElement):
+    def __init__(self, container: WebElement, browser):
         self.container = container
         self.label = self.container.find_element(By.XPATH, "legend/span[1]/span[1]")
         self.text = self.label.text
         self.options: list[WebElement] = self.container.find_elements(
             By.XPATH, "div/input"
         )
+        self.browser = browser
 
     def to_prompt_block(self) -> str:
         return ""
+
+    def answer_default(self) -> None:
+        if len(self.options) > 0:
+            self.browser.execute_script("arguments[0].click();", self.options[-1])
 
     def __str__(self) -> str:
         return truncate(self.text)
