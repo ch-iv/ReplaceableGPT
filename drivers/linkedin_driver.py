@@ -1,7 +1,8 @@
-import time
+from __future__ import annotations
 
+import time
 from .driver import Driver
-from .driver import sign_in_required, CookieCache, load_cache, save_cache
+from .driver import sign_in_required, CookieCache, load_cache, save_cache, FormInput
 from selenium.webdriver import Firefox
 from loguru import logger
 from typing import Optional
@@ -112,14 +113,15 @@ class LinkedinDriver(Driver):
         return True
 
     def handle_contact_info_page(self):
-        input_containers = self.get_text_inputs()
-        for input_container in input_containers:
-            label = input_container.find_element(By.TAG_NAME, "label")
-            input_tag = input_container.find_element(By.TAG_NAME, "input")
-            if label.text == "Mobile phone number":
-                if input_tag.get_attribute("value") != self.config["PHONE_NUMBER"]:
-                    input_tag.clear()
-                    input_tag.send_keys(self.config["PHONE_NUMBER"])
+        text_inputs: list[LnTextInput] = self.get_text_inputs()
+        for text_input in text_inputs:
+            if (
+                text_input.text == "Mobile phone number"
+                and text_input.input.get_attribute("value")
+                != self.config["PHONE_NUMBER"]
+            ):
+                text_input.input.clear()
+                text_input.input.send_keys(self.config["PHONE_NUMBER"])
         self.get_next_button().click()
 
     def handle_resume_page(self):
@@ -128,17 +130,50 @@ class LinkedinDriver(Driver):
         self.get_next_button().click()
 
     def handle_additional_questions_page(self):
-        pass
+        logger.debug(f"{self.get_all_inputs()=}")
 
     def get_next_button(self):
         return self.browser.find_element(
             By.XPATH, '//button[contains(@aria-label, "Continue to next step")]'
         )
 
-    def get_text_inputs(self) -> list[WebElement]:
-        return self.browser.find_elements(
-            By.XPATH, '//div[contains(@class, "artdeco-text-input--container")]'
+    def get_text_inputs(self) -> list[LnTextInput]:
+        return list(
+            map(
+                LnTextInput,
+                self.browser.find_elements(
+                    By.XPATH, '//div[contains(@class, "artdeco-text-input--container")]'
+                ),
+            )
         )
+
+    def get_select_inputs(self) -> list[LnSelectInput]:
+        return list(
+            map(
+                LnSelectInput,
+                self.browser.find_elements(
+                    By.XPATH, '//div[@data-test-text-entity-list-form-component=""]'
+                ),
+            )
+        )
+
+    def get_radio_inputs(self) -> list[LnRadioInput]:
+        return list(
+            map(
+                LnRadioInput,
+                self.browser.find_elements(
+                    By.XPATH,
+                    '//fieldset[@data-test-form-builder-radio-button-form-component="true"]',
+                ),
+            )
+        )
+
+    def get_all_inputs(self) -> list[LnTextInput | LnRadioInput | LnSelectInput]:
+        all_inputs: list[LnTextInput | LnRadioInput | LnSelectInput] = []
+        all_inputs.extend(self.get_text_inputs())
+        all_inputs.extend(self.get_radio_inputs())
+        all_inputs.extend(self.get_select_inputs())
+        return all_inputs
 
     def get_active_apply_button(self) -> Optional[WebElement]:
         """Gets the easy apply button and waits for it to be enabled"""
@@ -155,3 +190,65 @@ class LinkedinDriver(Driver):
         except Exception as e:
             logger.warning(f"Couldn't get the apply button\n{e}")
             return None
+
+
+class LnTextInput(FormInput):
+    def __init__(self, container: WebElement):
+        self.container = container
+        self.label = self.container.find_element(By.XPATH, "label")
+        self.text = self.label.text
+        self.input = self.container.find_element(By.XPATH, "input")
+
+    def to_prompt_block(self) -> str:
+        return ""
+
+    def __str__(self) -> str:
+        return truncate(self.text)
+
+    def __repr__(self):
+        return self.__str__()
+
+
+class LnSelectInput(FormInput):
+    def __init__(self, container: WebElement):
+        self.container = container
+        self.label = self.container.find_element(By.XPATH, "label")
+        self.text = self.label.text
+        self.options: list[WebElement] = self.container.find_elements(
+            By.XPATH, "select/option"
+        )
+
+    def to_prompt_block(self) -> str:
+        return ""
+
+    def __str__(self) -> str:
+        return truncate(self.text)
+
+    def __repr__(self):
+        return self.__str__()
+
+
+class LnRadioInput(FormInput):
+    def __init__(self, container: WebElement):
+        self.container = container
+        self.label = self.container.find_element(By.XPATH, "legend/span[1]/span[1]")
+        self.text = self.label.text
+        self.options: list[WebElement] = self.container.find_elements(
+            By.XPATH, "div/input"
+        )
+
+    def to_prompt_block(self) -> str:
+        return ""
+
+    def __str__(self) -> str:
+        return truncate(self.text)
+
+    def __repr__(self):
+        return self.__str__()
+
+
+def truncate(text: str, max_len: int = 20) -> str:
+    if len(text) < max_len:
+        return text
+    else:
+        return text[:max_len] + "..."

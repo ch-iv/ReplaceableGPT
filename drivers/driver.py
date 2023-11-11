@@ -54,3 +54,9 @@ def sign_in_required(func: Callable[[Driver, str], Any]):
         return func(driver, url)
 
     return wrapper
+
+
+class FormInput(ABC):
+    @abstractmethod
+    def to_prompt_block(self) -> str:
+        pass
